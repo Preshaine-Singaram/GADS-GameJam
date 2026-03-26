@@ -154,6 +154,33 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Pistol weapon"",
+                    ""type"": ""Button"",
+                    ""id"": ""fac5bcf9-bec6-468e-8f0a-8ba6b8f5e160"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Wire weapon"",
+                    ""type"": ""Button"",
+                    ""id"": ""e96b119a-824b-4645-ae7b-b7ee75b45acb"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Poison"",
+                    ""type"": ""Button"",
+                    ""id"": ""bae25948-67db-42a1-82a5-2d4e74ffcb5e"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -277,6 +304,39 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
                     ""action"": ""Interact"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""1253e2fb-9660-4a23-8e52-0273f1c298ed"",
+                    ""path"": ""<Keyboard>/1"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Pistol weapon"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""2a9ddf1c-3cac-43f7-a9df-50da1d186f3e"",
+                    ""path"": ""<Keyboard>/2"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Wire weapon"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""5ad84950-da2a-43e1-b859-30df4b0cd95f"",
+                    ""path"": ""<Keyboard>/3"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Poison"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         },
@@ -320,6 +380,9 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
         m_TheHitman_Crouch = m_TheHitman.FindAction("Crouch", throwIfNotFound: true);
         m_TheHitman_Action = m_TheHitman.FindAction("Action", throwIfNotFound: true);
         m_TheHitman_Interact = m_TheHitman.FindAction("Interact", throwIfNotFound: true);
+        m_TheHitman_Pistolweapon = m_TheHitman.FindAction("Pistol weapon", throwIfNotFound: true);
+        m_TheHitman_Wireweapon = m_TheHitman.FindAction("Wire weapon", throwIfNotFound: true);
+        m_TheHitman_Poison = m_TheHitman.FindAction("Poison", throwIfNotFound: true);
         // TheHandler
         m_TheHandler = asset.FindActionMap("TheHandler", throwIfNotFound: true);
         m_TheHandler_Newaction = m_TheHandler.FindAction("New action", throwIfNotFound: true);
@@ -411,6 +474,9 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
     private readonly InputAction m_TheHitman_Crouch;
     private readonly InputAction m_TheHitman_Action;
     private readonly InputAction m_TheHitman_Interact;
+    private readonly InputAction m_TheHitman_Pistolweapon;
+    private readonly InputAction m_TheHitman_Wireweapon;
+    private readonly InputAction m_TheHitman_Poison;
     /// <summary>
     /// Provides access to input actions defined in input action map "TheHitman".
     /// </summary>
@@ -450,6 +516,18 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "TheHitman/Interact".
         /// </summary>
         public InputAction @Interact => m_Wrapper.m_TheHitman_Interact;
+        /// <summary>
+        /// Provides access to the underlying input action "TheHitman/Pistolweapon".
+        /// </summary>
+        public InputAction @Pistolweapon => m_Wrapper.m_TheHitman_Pistolweapon;
+        /// <summary>
+        /// Provides access to the underlying input action "TheHitman/Wireweapon".
+        /// </summary>
+        public InputAction @Wireweapon => m_Wrapper.m_TheHitman_Wireweapon;
+        /// <summary>
+        /// Provides access to the underlying input action "TheHitman/Poison".
+        /// </summary>
+        public InputAction @Poison => m_Wrapper.m_TheHitman_Poison;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -497,6 +575,15 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
             @Interact.started += instance.OnInteract;
             @Interact.performed += instance.OnInteract;
             @Interact.canceled += instance.OnInteract;
+            @Pistolweapon.started += instance.OnPistolweapon;
+            @Pistolweapon.performed += instance.OnPistolweapon;
+            @Pistolweapon.canceled += instance.OnPistolweapon;
+            @Wireweapon.started += instance.OnWireweapon;
+            @Wireweapon.performed += instance.OnWireweapon;
+            @Wireweapon.canceled += instance.OnWireweapon;
+            @Poison.started += instance.OnPoison;
+            @Poison.performed += instance.OnPoison;
+            @Poison.canceled += instance.OnPoison;
         }
 
         /// <summary>
@@ -529,6 +616,15 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
             @Interact.started -= instance.OnInteract;
             @Interact.performed -= instance.OnInteract;
             @Interact.canceled -= instance.OnInteract;
+            @Pistolweapon.started -= instance.OnPistolweapon;
+            @Pistolweapon.performed -= instance.OnPistolweapon;
+            @Pistolweapon.canceled -= instance.OnPistolweapon;
+            @Wireweapon.started -= instance.OnWireweapon;
+            @Wireweapon.performed -= instance.OnWireweapon;
+            @Wireweapon.canceled -= instance.OnWireweapon;
+            @Poison.started -= instance.OnPoison;
+            @Poison.performed -= instance.OnPoison;
+            @Poison.canceled -= instance.OnPoison;
         }
 
         /// <summary>
@@ -714,6 +810,27 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnInteract(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Pistol weapon" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnPistolweapon(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Wire weapon" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnWireweapon(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Poison" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnPoison(InputAction.CallbackContext context);
     }
     /// <summary>
     /// Interface to implement callback methods for all input action callbacks associated with input actions defined by "TheHandler" which allows adding and removing callbacks.
