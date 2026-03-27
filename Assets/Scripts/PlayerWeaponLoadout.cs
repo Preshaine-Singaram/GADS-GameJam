@@ -71,8 +71,11 @@ public class PlayerWeaponLoadout : MonoBehaviour
     [Tooltip("Maximum pistol hitscan distance.")]
     [SerializeField] private float m_PistolRange = 150f;
 
-    [Tooltip("Layers that can be hit by pistol hitscan.")]
+    [Tooltip("Layers that can be hit by pistol hitscan. Must include your targets' layer (often Default).")]
     [SerializeField] private LayerMask m_PistolHitLayers = ~0;
+
+    [Tooltip("Ray hits on this transform and its children are ignored (use player root so shots don't hit your own capsule). If null, uses this GameObject.")]
+    [SerializeField] private Transform m_RaycastIgnoreRoot;
 
     [Tooltip("Only objects with this tag are considered valid kill targets.")]
     [SerializeField] private string m_TargetTag = "Target";
@@ -247,17 +250,63 @@ public class PlayerWeaponLoadout : MonoBehaviour
             direction = m_PistolMuzzleOrRayOrigin.forward;
         }
 
-        if (!Physics.Raycast(origin, direction, out RaycastHit hitInfo, m_PistolRange, m_PistolHitLayers, QueryTriggerInteraction.Ignore))
+        RaycastHit[] hits = Physics.RaycastAll(origin, direction, m_PistolRange, m_PistolHitLayers, QueryTriggerInteraction.Ignore);
+        if (hits == null || hits.Length == 0)
             return;
 
-        if (!string.IsNullOrWhiteSpace(m_TargetTag) && !hitInfo.collider.CompareTag(m_TargetTag))
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        Transform ignoreRoot = m_RaycastIgnoreRoot != null ? m_RaycastIgnoreRoot : transform;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            RaycastHit hitInfo = hits[i];
+            if (IsUnderIgnoreRoot(hitInfo.collider.transform, ignoreRoot))
+                continue;
+
+            // Tags are per-GameObject: mesh colliders on children are often Untagged while the root is "Target".
+            if (!HierarchyHasTag(hitInfo.collider.transform, m_TargetTag))
+                return;
+
+            KillablePatrolTarget killable = hitInfo.collider.GetComponentInParent<KillablePatrolTarget>();
+            if (killable != null)
+            {
+                killable.Kill();
+                return;
+            }
+
+            GameObject targetToDestroy = hitInfo.collider.gameObject;
+            if (m_DestroyRigidbodyRoot && hitInfo.rigidbody != null)
+                targetToDestroy = hitInfo.rigidbody.gameObject;
+
+            Destroy(targetToDestroy);
             return;
+        }
+    }
 
-        GameObject targetToDestroy = hitInfo.collider.gameObject;
-        if (m_DestroyRigidbodyRoot && hitInfo.rigidbody != null)
-            targetToDestroy = hitInfo.rigidbody.gameObject;
+    private static bool IsUnderIgnoreRoot(Transform _hit, Transform _ignoreRoot)
+    {
+        if (_ignoreRoot == null)
+            return false;
 
-        Destroy(targetToDestroy);
+        return _hit == _ignoreRoot || _hit.IsChildOf(_ignoreRoot);
+    }
+
+    private static bool HierarchyHasTag(Transform _leaf, string _tag)
+    {
+        if (string.IsNullOrWhiteSpace(_tag))
+            return true;
+
+        Transform t = _leaf;
+        while (t != null)
+        {
+            if (t.CompareTag(_tag))
+                return true;
+
+            t = t.parent;
+        }
+
+        return false;
     }
 
     private void EnsurePistolVisualReference()

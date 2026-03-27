@@ -11,6 +11,8 @@ public class CanvasPanelToggleAndMapSwitch : MonoBehaviour
     #region Inspector
     [Header("UI")]
     [SerializeField] private GameObject m_OverlayPanel;
+    [Tooltip("Hitman HUD/UI root to hide while handler overlay is shown.")]
+    [SerializeField] private GameObject m_HitmanUIRoot;
 
     [Header("Input Asset")]
     [Tooltip("Reference to the Input Actions asset (Assets/Player_IA.inputactions).")]
@@ -36,11 +38,14 @@ public class CanvasPanelToggleAndMapSwitch : MonoBehaviour
     private InputActionMap m_HandlerMap;
     private InputAction m_SwitchToHandlerAction;
     private InputAction m_SwitchToHitmanAction;
+    private bool m_WasHitmanUIVisibleBeforeOverlay;
     #endregion
 
     #region Unity Lifecycle
     private void Awake()
     {
+        m_WasHitmanUIVisibleBeforeOverlay = m_HitmanUIRoot == null || m_HitmanUIRoot.activeSelf;
+
         if (m_OverlayPanel != null)
             m_OverlayPanel.SetActive(false);
 
@@ -117,6 +122,19 @@ public class CanvasPanelToggleAndMapSwitch : MonoBehaviour
     {
         if (m_OverlayPanel != null)
             m_OverlayPanel.SetActive(isOverlayShown);
+
+        if (m_HitmanUIRoot != null)
+        {
+            if (isOverlayShown)
+            {
+                m_WasHitmanUIVisibleBeforeOverlay = m_HitmanUIRoot.activeSelf;
+                m_HitmanUIRoot.SetActive(false);
+            }
+            else
+            {
+                m_HitmanUIRoot.SetActive(m_WasHitmanUIVisibleBeforeOverlay);
+            }
+        }
 
         if (m_PlayerControllerToDisable != null)
             m_PlayerControllerToDisable.enabled = !isOverlayShown;

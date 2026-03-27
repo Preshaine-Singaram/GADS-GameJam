@@ -59,6 +59,9 @@ public class NpcPatrolController : MonoBehaviour
     [Tooltip("If true, guard must see player while player is inside Chase Area.")]
     [SerializeField] private bool m_RequirePlayerInsideChaseArea = true;
 
+    [Tooltip("Patrol targets (KillablePatrolTarget). If the guard sees any of them dead (lying down), they chase the player globally, ignoring Chase Area until the chase ends.")]
+    [SerializeField] private KillablePatrolTarget[] m_DeadBodyTargetsToWatch;
+
     [Tooltip("Extra tolerance for chase-area containment checks.")]
     [SerializeField, Range(0f, 2f)] private float m_ChaseAreaPadding = 0.25f;
 
@@ -67,6 +70,10 @@ public class NpcPatrolController : MonoBehaviour
 
     [Tooltip("Stopping distance used while chasing the player.")]
     [SerializeField] private float m_ChaseStoppingDistance = 1.4f;
+
+    [Header("Catch / Game Over")]
+    [Tooltip("Horizontal distance at or below which the guard counts as catching the player while chasing. Also compared against Chase Stopping Distance so the guard can register a catch when the agent stops near the player.")]
+    [SerializeField] private float m_CatchContactDistance = 1.55f;
 
     [Header("Debug")]
     [Tooltip("Logs guard detection/chase state changes to Console.")]
@@ -89,6 +96,9 @@ public class NpcPatrolController : MonoBehaviour
     private bool m_DebugInArea;
     private bool m_DebugCanSeePlayer;
     private bool m_DebugEligible;
+    private bool m_DebugCanSeeDeadPatrolTarget;
+    private bool m_CanSeeDeadPatrolTargetThisFrame;
+    private bool m_ChaseTriggeredByDeadBody;
     private string m_LastDebugState = string.Empty;
     #endregion
 
@@ -118,6 +128,8 @@ public class NpcPatrolController : MonoBehaviour
     private void Update()
     {
         HandleVisionAndChase();
+
+        TryCatchPlayerWhileChasing();
 
         if (m_IsChasingPlayer)
             return;
@@ -163,6 +175,7 @@ public class NpcPatrolController : MonoBehaviour
         m_IsChasingPlayer = false;
         m_TimeSinceLastSight = 0f;
         m_HasTurnedAtCurrentWaypoint = false;
+        m_ChaseTriggeredByDeadBody = false;
 
         if (m_Agent != null)
             m_Agent.stoppingDistance = m_DefaultStoppingDistance;
@@ -193,6 +206,9 @@ public class NpcPatrolController : MonoBehaviour
         if (m_Player == null)
             ResolvePlayerReference();
 
+        m_CanSeeDeadPatrolTargetThisFrame = CanSeeDeadPatrolTarget();
+        m_DebugCanSeeDeadPatrolTarget = m_CanSeeDeadPatrolTargetThisFrame;
+
         m_DebugPlayerFound = m_Player != null;
         m_DebugInArea = IsPlayerInsideChaseArea();
         bool canSeePlayer = CanSeePlayer();
@@ -218,6 +234,13 @@ public class NpcPatrolController : MonoBehaviour
             return;
         }
 
+        if (!m_IsChasingPlayer && m_CanSeeDeadPatrolTargetThisFrame && m_ChaseWhenPlayerSeen)
+        {
+            StartChasingPlayer();
+            UpdateChaseDestination();
+            return;
+        }
+
         if (!m_IsChasingPlayer)
             return;
 
@@ -229,7 +252,10 @@ public class NpcPatrolController : MonoBehaviour
 
         m_TimeSinceLastSight += Time.deltaTime;
         if (m_TimeSinceLastSight < m_LostSightGraceSeconds)
+        {
+            UpdateChaseDestination();
             return;
+        }
 
         StopChasingAndResumePatrol();
     }
@@ -241,12 +267,16 @@ public class NpcPatrolController : MonoBehaviour
         m_WaitTimer = 0f;
         m_TimeSinceLastSight = 0f;
         m_Agent.stoppingDistance = Mathf.Max(0f, m_ChaseStoppingDistance);
+
+        if (m_CanSeeDeadPatrolTargetThisFrame)
+            m_ChaseTriggeredByDeadBody = true;
     }
 
     private void StopChasingAndResumePatrol()
     {
         m_IsChasingPlayer = false;
         m_TimeSinceLastSight = 0f;
+        m_ChaseTriggeredByDeadBody = false;
         m_Agent.stoppingDistance = m_DefaultStoppingDistance;
 
         if (m_Route != null && m_Route.WaypointCount > 0)
@@ -259,6 +289,23 @@ public class NpcPatrolController : MonoBehaviour
             return;
 
         m_Agent.SetDestination(m_Player.position);
+    }
+
+    private void TryCatchPlayerWhileChasing()
+    {
+        if (!m_IsChasingPlayer || m_Player == null)
+            return;
+
+        Vector3 guardXZ = transform.position;
+        guardXZ.y = 0f;
+        Vector3 playerXZ = m_Player.position;
+        playerXZ.y = 0f;
+
+        float catchRadius = Mathf.Max(0.05f, m_CatchContactDistance, m_ChaseStoppingDistance + 0.12f);
+        if ((guardXZ - playerXZ).sqrMagnitude > catchRadius * catchRadius)
+            return;
+
+        PlayerDeathScreen.TriggerPlayerDeath();
     }
 
     private bool CanSeePlayer()
@@ -310,6 +357,82 @@ public class NpcPatrolController : MonoBehaviour
         return false;
     }
 
+    private bool CanSeeDeadPatrolTarget()
+    {
+        if (m_DeadBodyTargetsToWatch == null || m_DeadBodyTargetsToWatch.Length == 0)
+            return false;
+
+        for (int i = 0; i < m_DeadBodyTargetsToWatch.Length; i++)
+        {
+            KillablePatrolTarget target = m_DeadBodyTargetsToWatch[i];
+            if (target == null || !target.IsDead)
+                continue;
+
+            if (CanSeePointOnTransform(target.transform, GetDeadPatrolTargetSightPoint(target)))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static Vector3 GetDeadPatrolTargetSightPoint(KillablePatrolTarget _target)
+    {
+        if (_target == null)
+            return Vector3.zero;
+
+        Collider[] colliders = _target.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider c = colliders[i];
+            if (c != null && c.enabled)
+                return c.bounds.center;
+        }
+
+        return _target.transform.position + Vector3.up * 0.35f;
+    }
+
+    private bool CanSeePointOnTransform(Transform _subjectRoot, Vector3 _worldPoint)
+    {
+        Vector3 origin = m_EyePoint != null ? m_EyePoint.position : transform.position + Vector3.up * 1.6f;
+        Vector3 toPoint = _worldPoint - origin;
+        float sqrDistance = toPoint.sqrMagnitude;
+        float maxDistance = Mathf.Max(0.01f, m_ViewDistance);
+        if (sqrDistance > maxDistance * maxDistance)
+            return false;
+
+        Vector3 dirToPoint = toPoint.normalized;
+        if (Vector3.Angle(transform.forward, dirToPoint) > m_ViewAngle)
+            return false;
+
+        // Collide with triggers so corpses that only have trigger colliders (non-trigger disabled on death) still block LOS to walls behind them.
+        RaycastHit[] hits = Physics.RaycastAll(origin, dirToPoint, Mathf.Sqrt(sqrDistance), m_VisibilityMask, QueryTriggerInteraction.Collide);
+        if (hits == null || hits.Length == 0)
+            return true;
+
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider hitCollider = hits[i].collider;
+            if (hitCollider == null)
+                continue;
+
+            if (hitCollider.transform == transform || hitCollider.transform.IsChildOf(transform))
+                continue;
+
+            if (m_ChaseArea != null && hitCollider == m_ChaseArea)
+                continue;
+
+            Transform hitTransform = hits[i].transform;
+            if (hitTransform == _subjectRoot || hitTransform.IsChildOf(_subjectRoot))
+                return true;
+
+            return false;
+        }
+
+        return true;
+    }
+
     private void ResolvePlayerReference()
     {
         if (m_Player != null || string.IsNullOrWhiteSpace(m_PlayerTag))
@@ -322,6 +445,9 @@ public class NpcPatrolController : MonoBehaviour
 
     private bool IsPlayerEligibleForChase()
     {
+        if (m_ChaseTriggeredByDeadBody || m_CanSeeDeadPatrolTargetThisFrame)
+            return true;
+
         if (!m_RequirePlayerInsideChaseArea)
             return true;
 
@@ -392,7 +518,7 @@ public class NpcPatrolController : MonoBehaviour
         if (!m_EnableDebugLogs)
             return;
 
-        string state = $"Found:{m_DebugPlayerFound} InArea:{m_DebugInArea} See:{m_DebugCanSeePlayer} Eligible:{m_DebugEligible} Chasing:{m_IsChasingPlayer} Patrol:{m_IsPatrolling}";
+        string state = $"Found:{m_DebugPlayerFound} InArea:{m_DebugInArea} See:{m_DebugCanSeePlayer} SeeDead:{m_DebugCanSeeDeadPatrolTarget} Eligible:{m_DebugEligible} Chasing:{m_IsChasingPlayer} Patrol:{m_IsPatrolling}";
         if (state == m_LastDebugState)
             return;
 
