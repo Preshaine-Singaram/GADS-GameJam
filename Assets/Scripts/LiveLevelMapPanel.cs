@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>
@@ -26,6 +27,57 @@ public class LiveLevelMapPanel : MonoBehaviour
 
     [Tooltip("Player transform whose position is mapped into UI coordinates.")]
     [SerializeField] private Transform m_Player;
+    #endregion
+
+    #region Door Controls
+    [Header("Doors")]
+    [Tooltip("Optional root containing door GameObjects to show/toggle from the map screen.")]
+    [SerializeField] private Transform m_DoorsRoot;
+
+    [Tooltip("If m_DoorsRoot is null, tries to find a Transform by this GameObject name.")]
+    [SerializeField] private bool m_AutoFindDoorsRoot = true;
+    [SerializeField] private string m_AutoFindDoorsRootName = "Doors";
+
+    [Tooltip("When enabled, pressing the toggle key while map panel is visible will enable/disable all tracked doors.")]
+    [SerializeField] private bool m_AllowDoorToggleFromMap = true;
+
+    [Tooltip("Keyboard key used to toggle mesh/collider on the selected door while map screen is visible.")]
+    [SerializeField] private Key m_ToggleDoorsKey = Key.T;
+
+    [Tooltip("Marker size in UI units for each door on the map.")]
+    [SerializeField] private Vector2 m_DoorMarkerSize = new Vector2(18f, 18f);
+
+    [Tooltip("Default marker color for unselected doors.")]
+    [SerializeField] private Color m_DoorMarkerColor = new Color(0.95f, 0.3f, 0.3f, 0.95f);
+
+    [Tooltip("Marker color for the currently selected door.")]
+    [SerializeField] private Color m_SelectedDoorMarkerColor = new Color(1f, 0.95f, 0.25f, 1f);
+
+    [Header("Handler Input Actions")]
+    [Tooltip("TheHandler/select action used to select a door marker under the cursor.")]
+    [SerializeField] private InputActionReference m_SelectDoorAction;
+
+    [Tooltip("TheHandler/Activate action used to toggle selected door visibility/collision.")]
+    [SerializeField] private InputActionReference m_ActivateDoorAction;
+
+    [Tooltip("If true, this component enables/disables handler actions with its lifecycle.")]
+    [SerializeField] private bool m_AutoEnableHandlerActions = true;
+
+    [Tooltip("Max cursor distance (UI units) from a marker to allow selection.")]
+    [SerializeField] private float m_SelectDoorMaxDistance = 32f;
+    #endregion
+
+    #region Roof Controls
+    [Header("Roofs")]
+    [Tooltip("Optional root containing roof objects that should be hidden while the map panel is visible.")]
+    [SerializeField] private Transform m_RoofsRoot;
+
+    [Tooltip("If m_RoofsRoot is null, tries to find a Transform by this GameObject name.")]
+    [SerializeField] private bool m_AutoFindRoofsRoot = true;
+    [SerializeField] private string m_AutoFindRoofsRootName = "Roofs";
+
+    [Tooltip("When enabled, roof renderers under m_RoofsRoot are hidden while the map panel is open.")]
+    [SerializeField] private bool m_HideRoofsWhileMapVisible = true;
     #endregion
 
     #region RenderTexture
@@ -75,6 +127,27 @@ public class LiveLevelMapPanel : MonoBehaviour
     private bool m_IsInitialized;
     private Bounds m_WorldBounds;
     private readonly Vector3[] m_MapWorldCorners = new Vector3[4];
+    private DoorEntry[] m_DoorEntries = Array.Empty<DoorEntry>();
+    private RectTransform m_DoorMarkersRoot;
+    private int m_SelectedDoorIndex = -1;
+    private RoofRendererState[] m_RoofRendererStates = Array.Empty<RoofRendererState>();
+    private bool m_AreRoofsHiddenForMap;
+
+    private sealed class DoorEntry
+    {
+        public Transform DoorRoot;
+        public Renderer[] Renderers;
+        public Collider[] Colliders;
+        public RectTransform MarkerRect;
+        public Image MarkerImage;
+        public bool IsEnabled = true;
+    }
+
+    private struct RoofRendererState
+    {
+        public Renderer Renderer;
+        public bool WasEnabled;
+    }
     #endregion
 
     #region Unity Lifecycle
@@ -86,6 +159,12 @@ public class LiveLevelMapPanel : MonoBehaviour
         if (m_MapPanel == null && m_AutoFindMapPanel)
             m_MapPanel = FindMapPanelByName(m_AutoFindMapPanelName);
 
+        if (m_DoorsRoot == null && m_AutoFindDoorsRoot)
+            m_DoorsRoot = FindTransformByName(m_AutoFindDoorsRootName);
+
+        if (m_RoofsRoot == null && m_AutoFindRoofsRoot)
+            m_RoofsRoot = FindTransformByName(m_AutoFindRoofsRootName);
+
         InitializeIfNeeded();
     }
 
@@ -93,6 +172,12 @@ public class LiveLevelMapPanel : MonoBehaviour
     {
         InitializeIfNeeded();
         ApplyCameraAndTextureState();
+
+        if (!m_AutoEnableHandlerActions)
+            return;
+
+        m_SelectDoorAction?.action.Enable();
+        m_ActivateDoorAction?.action.Enable();
     }
 
     private void Update()
@@ -103,6 +188,9 @@ public class LiveLevelMapPanel : MonoBehaviour
         if (m_RenderOnlyWhenPanelVisible)
             ApplyCameraAndTextureState();
 
+        UpdateDoorMarkerPositions();
+        HandleDoorSelectionInput();
+        HandleDoorToggleInput();
         UpdatePlayerMarker();
     }
 
@@ -111,17 +199,30 @@ public class LiveLevelMapPanel : MonoBehaviour
         if (!m_IsInitialized)
             return;
 
+        SetRoofsHiddenForMap(false);
+
         if (m_RenderOnlyWhenPanelVisible && m_MapCamera != null)
             m_MapCamera.enabled = false;
+
+        if (!m_AutoEnableHandlerActions)
+            return;
+
+        m_SelectDoorAction?.action.Disable();
+        m_ActivateDoorAction?.action.Disable();
     }
 
     private void OnDestroy()
     {
+        SetRoofsHiddenForMap(false);
+
         if (m_RenderTexture != null)
         {
             m_RenderTexture.Release();
             m_RenderTexture = null;
         }
+
+        if (m_DoorMarkersRoot != null)
+            Destroy(m_DoorMarkersRoot.gameObject);
     }
     #endregion
 
@@ -156,8 +257,11 @@ public class LiveLevelMapPanel : MonoBehaviour
             m_WorldBounds = new Bounds(Vector3.zero, new Vector3(50f, 50f, 50f));
         }
 
+        CacheDoorObjects();
+        CacheRoofRenderers();
         SetupMapCameraTopDown();
         SetupRenderTexture();
+        BuildDoorMarkers();
         m_IsInitialized = true;
     }
     #endregion
@@ -168,7 +272,7 @@ public class LiveLevelMapPanel : MonoBehaviour
         if (m_MapCamera == null)
             return;
 
-        m_MapCamera.cullingMask = m_MapCullingMask;
+        m_MapCamera.cullingMask = m_MapCullingMask | GetDoorLayersMask();
 
         // Ensure this camera renders as a true top-down map.
         if (!m_MapCamera.orthographic)
@@ -235,6 +339,397 @@ public class LiveLevelMapPanel : MonoBehaviour
 
         bool shouldRender = isActiveAndEnabled && m_MapPanel.gameObject.activeInHierarchy;
         m_MapCamera.enabled = shouldRender;
+        SetRoofsHiddenForMap(shouldRender);
+    }
+    #endregion
+
+    #region Door Controls
+    public void ToggleDoorsActive()
+    {
+        ToggleSelectedDoorEnabled();
+    }
+
+    public void ToggleSelectedDoorEnabled()
+    {
+        if (m_SelectedDoorIndex < 0 || m_SelectedDoorIndex >= m_DoorEntries.Length)
+            return;
+
+        DoorEntry entry = m_DoorEntries[m_SelectedDoorIndex];
+        SetDoorEnabled(entry, !entry.IsEnabled);
+    }
+
+    private void HandleDoorToggleInput()
+    {
+        if (!m_AllowDoorToggleFromMap || !IsMapPanelVisible())
+            return;
+
+        bool activatePressed = m_ActivateDoorAction != null
+            && m_ActivateDoorAction.action != null
+            && m_ActivateDoorAction.action.WasPressedThisFrame();
+        bool keyboardFallbackPressed = Keyboard.current != null && Keyboard.current[m_ToggleDoorsKey].wasPressedThisFrame;
+
+        if (!activatePressed && !keyboardFallbackPressed)
+            return;
+
+        ToggleSelectedDoorEnabled();
+    }
+
+    private void HandleDoorSelectionInput()
+    {
+        if (!IsMapPanelVisible())
+            return;
+
+        bool selectPressed = m_SelectDoorAction != null
+            && m_SelectDoorAction.action != null
+            && m_SelectDoorAction.action.WasPressedThisFrame();
+        if (!selectPressed)
+            return;
+
+        TrySelectDoorAtCursor();
+    }
+
+    private void TrySelectDoorAtCursor()
+    {
+        if (m_DoorEntries == null || m_DoorEntries.Length == 0 || m_DoorMarkersRoot == null || Mouse.current == null)
+            return;
+
+        Canvas panelCanvas = m_MapPanel != null ? m_MapPanel.GetComponentInParent<Canvas>() : null;
+        Camera uiCamera = null;
+        if (panelCanvas != null && panelCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
+            uiCamera = panelCanvas.worldCamera;
+
+        Vector2 mouseScreenPosition = Mouse.current.position.ReadValue();
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(m_DoorMarkersRoot, mouseScreenPosition, uiCamera, out Vector2 cursorLocalPoint))
+            return;
+
+        float maxDistance = Mathf.Max(1f, m_SelectDoorMaxDistance);
+        float bestDistanceSqr = maxDistance * maxDistance;
+        int bestIndex = -1;
+
+        for (int i = 0; i < m_DoorEntries.Length; i++)
+        {
+            DoorEntry entry = m_DoorEntries[i];
+            if (entry == null || entry.MarkerRect == null || !entry.MarkerRect.gameObject.activeInHierarchy)
+                continue;
+
+            float distanceSqr = (entry.MarkerRect.anchoredPosition - cursorLocalPoint).sqrMagnitude;
+            if (distanceSqr >= bestDistanceSqr)
+                continue;
+
+            bestDistanceSqr = distanceSqr;
+            bestIndex = i;
+        }
+
+        if (bestIndex >= 0)
+            SelectDoor(bestIndex);
+    }
+
+    private void CacheDoorObjects()
+    {
+        if (m_DoorsRoot == null)
+        {
+            m_DoorEntries = Array.Empty<DoorEntry>();
+            return;
+        }
+
+        int childCount = m_DoorsRoot.childCount;
+        if (childCount <= 0)
+        {
+            m_DoorEntries = Array.Empty<DoorEntry>();
+            return;
+        }
+
+        m_DoorEntries = new DoorEntry[childCount];
+        int index = 0;
+        for (int i = 0; i < childCount; i++)
+        {
+            Transform doorTransform = m_DoorsRoot.GetChild(i);
+            if (doorTransform == null)
+                continue;
+
+            DoorEntry entry = new DoorEntry
+            {
+                DoorRoot = doorTransform,
+                Renderers = doorTransform.GetComponentsInChildren<Renderer>(true),
+                Colliders = doorTransform.GetComponentsInChildren<Collider>(true),
+                IsEnabled = IsDoorEnabledByComponents(doorTransform)
+            };
+
+            m_DoorEntries[index] = entry;
+            index++;
+        }
+
+        if (index < m_DoorEntries.Length)
+            Array.Resize(ref m_DoorEntries, index);
+
+        if (m_DoorEntries.Length > 0)
+            SelectDoor(0);
+    }
+
+    private void BuildDoorMarkers()
+    {
+        if (m_MapPanel == null)
+            return;
+
+        if (m_DoorMarkersRoot != null)
+            Destroy(m_DoorMarkersRoot.gameObject);
+
+        GameObject rootGo = new GameObject("DoorMarkers", typeof(RectTransform));
+        rootGo.transform.SetParent(m_MapPanel, false);
+        m_DoorMarkersRoot = rootGo.GetComponent<RectTransform>();
+        m_DoorMarkersRoot.anchorMin = Vector2.zero;
+        m_DoorMarkersRoot.anchorMax = Vector2.one;
+        m_DoorMarkersRoot.offsetMin = Vector2.zero;
+        m_DoorMarkersRoot.offsetMax = Vector2.zero;
+        m_DoorMarkersRoot.anchoredPosition = Vector2.zero;
+        m_DoorMarkersRoot.SetSiblingIndex(m_MapPanel.childCount - 1);
+
+        for (int i = 0; i < m_DoorEntries.Length; i++)
+        {
+            DoorEntry entry = m_DoorEntries[i];
+            if (entry == null || entry.DoorRoot == null)
+                continue;
+
+            GameObject markerGo = new GameObject($"DoorMarker_{i:D2}", typeof(RectTransform), typeof(Image), typeof(Button));
+            markerGo.transform.SetParent(m_DoorMarkersRoot, false);
+
+            RectTransform markerRect = markerGo.GetComponent<RectTransform>();
+            markerRect.anchorMin = new Vector2(0.5f, 0.5f);
+            markerRect.anchorMax = new Vector2(0.5f, 0.5f);
+            markerRect.pivot = new Vector2(0.5f, 0.5f);
+            markerRect.sizeDelta = m_DoorMarkerSize;
+
+            Image markerImage = markerGo.GetComponent<Image>();
+            markerImage.color = m_DoorMarkerColor;
+
+            int localIndex = i;
+            Button button = markerGo.GetComponent<Button>();
+            button.onClick.AddListener(() => SelectDoor(localIndex));
+
+            entry.MarkerRect = markerRect;
+            entry.MarkerImage = markerImage;
+        }
+
+        UpdateDoorSelectionVisuals();
+    }
+
+    public void SelectDoor(int doorIndex)
+    {
+        if (m_DoorEntries == null || m_DoorEntries.Length == 0)
+        {
+            m_SelectedDoorIndex = -1;
+            return;
+        }
+
+        m_SelectedDoorIndex = Mathf.Clamp(doorIndex, 0, m_DoorEntries.Length - 1);
+        UpdateDoorSelectionVisuals();
+    }
+
+    public void SetSelectedDoorEnabled(bool isEnabled)
+    {
+        if (m_SelectedDoorIndex < 0 || m_SelectedDoorIndex >= m_DoorEntries.Length)
+            return;
+
+        SetDoorEnabled(m_DoorEntries[m_SelectedDoorIndex], isEnabled);
+    }
+
+    private void UpdateDoorSelectionVisuals()
+    {
+        if (m_DoorEntries == null)
+            return;
+
+        for (int i = 0; i < m_DoorEntries.Length; i++)
+        {
+            DoorEntry entry = m_DoorEntries[i];
+            if (entry?.MarkerImage == null)
+                continue;
+
+            entry.MarkerImage.color = i == m_SelectedDoorIndex ? m_SelectedDoorMarkerColor : m_DoorMarkerColor;
+        }
+    }
+
+    private void UpdateDoorMarkerPositions()
+    {
+        if (m_DoorEntries == null || m_DoorEntries.Length == 0 || m_MapRawImage == null)
+            return;
+
+        for (int i = 0; i < m_DoorEntries.Length; i++)
+        {
+            DoorEntry entry = m_DoorEntries[i];
+            if (entry == null || entry.DoorRoot == null || entry.MarkerRect == null)
+                continue;
+
+            if (!TryGetMapAnchoredPosition(entry.DoorRoot.position, out Vector2 anchoredPos, out bool inFront))
+            {
+                entry.MarkerRect.gameObject.SetActive(false);
+                continue;
+            }
+
+            entry.MarkerRect.anchoredPosition = anchoredPos;
+            entry.MarkerRect.gameObject.SetActive(inFront);
+        }
+    }
+
+    private bool TryGetMapAnchoredPosition(Vector3 worldPosition, out Vector2 anchoredPosition, out bool inFront)
+    {
+        anchoredPosition = Vector2.zero;
+        inFront = false;
+
+        if (m_MapCamera == null || m_MapRawImage == null)
+            return false;
+
+        Vector3 viewport = m_MapCamera.WorldToViewportPoint(worldPosition);
+        inFront = viewport.z >= 0f;
+
+        float vx = Mathf.Clamp01(viewport.x);
+        float vy = Mathf.Clamp01(viewport.y);
+
+        RectTransform mapRect = m_MapRawImage.rectTransform;
+        Rect rect = mapRect.rect;
+        anchoredPosition = new Vector2(
+            (vx - mapRect.pivot.x) * rect.width,
+            (vy - mapRect.pivot.y) * rect.height
+        );
+
+        return true;
+    }
+
+    private static bool IsDoorEnabledByComponents(Transform doorTransform)
+    {
+        if (doorTransform == null)
+            return false;
+
+        Renderer[] renderers = doorTransform.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null && renderers[i].enabled)
+                return true;
+        }
+
+        Collider[] colliders = doorTransform.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] != null && colliders[i].enabled)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void SetDoorEnabled(DoorEntry entry, bool enabled)
+    {
+        if (entry == null)
+            return;
+
+        if (entry.Renderers != null)
+        {
+            for (int i = 0; i < entry.Renderers.Length; i++)
+            {
+                if (entry.Renderers[i] != null)
+                    entry.Renderers[i].enabled = enabled;
+            }
+        }
+
+        if (entry.Colliders != null)
+        {
+            for (int i = 0; i < entry.Colliders.Length; i++)
+            {
+                if (entry.Colliders[i] != null)
+                    entry.Colliders[i].enabled = enabled;
+            }
+        }
+
+        entry.IsEnabled = enabled;
+    }
+
+    private int GetDoorLayersMask()
+    {
+        if (m_DoorsRoot == null)
+            return 0;
+
+        Renderer[] doorRenderers = m_DoorsRoot.GetComponentsInChildren<Renderer>(true);
+        int layersMask = 0;
+        for (int i = 0; i < doorRenderers.Length; i++)
+        {
+            if (doorRenderers[i] == null)
+                continue;
+
+            layersMask |= 1 << doorRenderers[i].gameObject.layer;
+        }
+
+        return layersMask;
+    }
+
+    private bool IsMapPanelVisible()
+    {
+        return m_MapPanel != null && m_MapPanel.gameObject.activeInHierarchy;
+    }
+
+    private void CacheRoofRenderers()
+    {
+        if (m_RoofsRoot == null)
+        {
+            m_RoofRendererStates = Array.Empty<RoofRendererState>();
+            return;
+        }
+
+        Renderer[] renderers = m_RoofsRoot.GetComponentsInChildren<Renderer>(true);
+        if (renderers == null || renderers.Length == 0)
+        {
+            m_RoofRendererStates = Array.Empty<RoofRendererState>();
+            return;
+        }
+
+        m_RoofRendererStates = new RoofRendererState[renderers.Length];
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            m_RoofRendererStates[i] = new RoofRendererState
+            {
+                Renderer = renderers[i],
+                WasEnabled = renderers[i] != null && renderers[i].enabled
+            };
+        }
+    }
+
+    private void SetRoofsHiddenForMap(bool shouldHide)
+    {
+        if (!m_HideRoofsWhileMapVisible)
+            shouldHide = false;
+
+        if (m_AreRoofsHiddenForMap == shouldHide)
+            return;
+
+        if (m_RoofRendererStates == null || m_RoofRendererStates.Length == 0)
+            return;
+
+        if (shouldHide)
+        {
+            for (int i = 0; i < m_RoofRendererStates.Length; i++)
+            {
+                RoofRendererState state = m_RoofRendererStates[i];
+                if (state.Renderer == null)
+                    continue;
+
+                state.WasEnabled = state.Renderer.enabled;
+                state.Renderer.enabled = false;
+                m_RoofRendererStates[i] = state;
+            }
+
+            m_AreRoofsHiddenForMap = true;
+            return;
+        }
+
+        for (int i = 0; i < m_RoofRendererStates.Length; i++)
+        {
+            RoofRendererState state = m_RoofRendererStates[i];
+            if (state.Renderer == null)
+                continue;
+
+            state.Renderer.enabled = state.WasEnabled;
+            m_RoofRendererStates[i] = state;
+        }
+
+        m_AreRoofsHiddenForMap = false;
     }
     #endregion
 
@@ -317,6 +812,15 @@ public class LiveLevelMapPanel : MonoBehaviour
 
         found.TryGetComponent(out RectTransform rt);
         return rt;
+    }
+
+    private Transform FindTransformByName(string objectName)
+    {
+        if (string.IsNullOrEmpty(objectName))
+            return null;
+
+        GameObject found = GameObject.Find(objectName);
+        return found != null ? found.transform : null;
     }
 
     private RawImage CreateRawImageUnderPanel(RectTransform panel)

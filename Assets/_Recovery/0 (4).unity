@@ -3200,7 +3200,7 @@ Transform:
   m_GameObject: {fileID: 388303553}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 19.03, y: 1.35, z: 60.29}
+  m_LocalPosition: {x: 16.91, y: 1.35, z: 43.77}
   m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 1
   m_Children:
@@ -3306,10 +3306,10 @@ MonoBehaviour:
   m_WaitAtWaypointSeconds: 5
   m_AutoStartPatrol: 1
   m_TurnAroundAtWaypoint: 1
-  m_Player: {fileID: 990220861}
+  m_Player: {fileID: 1934814696}
   m_PlayerTag: Player
   m_EyePoint: {fileID: 1056993444}
-  m_ViewDistance: 60.1
+  m_ViewDistance: 20
   m_ViewAngle: 90
   m_VisibilityMask:
     serializedVersion: 2
@@ -3317,11 +3317,8 @@ MonoBehaviour:
   m_ChaseWhenPlayerSeen: 1
   m_ChaseArea: {fileID: 1578190845}
   m_RequirePlayerInsideChaseArea: 1
-  m_ChaseAreaPadding: 0.5
   m_LostSightGraceSeconds: 2
   m_ChaseStoppingDistance: 1.4
-  m_EnableDebugLogs: 1
-  m_DrawDebugGizmos: 1
 --- !u!195 &388303559
 NavMeshAgent:
   m_ObjectHideFlags: 0
@@ -10116,7 +10113,7 @@ Transform:
   m_GameObject: {fileID: 990220857}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 20.6, y: 1.87, z: 34.5}
+  m_LocalPosition: {x: 20.6, y: 7.11, z: 34.5}
   m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -10774,7 +10771,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.64242, g: 0, b: 0.8415094, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -14830,8 +14827,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 66.210266, y: 10.065269, z: 24.159935}
-  m_Center: {x: 27.537773, y: 5.3183403, z: 0.023914337}
+  m_Size: {x: 66.210266, y: 0, z: 24.159935}
+  m_Center: {x: 27.537773, y: 0.5, z: 0.023914337}
 --- !u!4 &1578190846
 Transform:
   m_ObjectHideFlags: 0
@@ -17847,7 +17844,7 @@ Transform:
   m_GameObject: {fileID: 1934814695}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -3.87, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -259,9 +259,27 @@
             "id": "e4ba5aa6-6bf0-4640-9c91-ed818b78da78",
             "actions": [
                 {
-                    "name": "New action",
+                    "name": "select",
                     "type": "Button",
                     "id": "05f1fe66-9ac9-4adf-9674-44ef0473fbbd",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Activate",
+                    "type": "Button",
+                    "id": "6de2aa0e-8dcb-4fe6-8cb6-9b1940799667",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Switch",
+                    "type": "Button",
+                    "id": "9083122f-a1fc-4922-acfd-f4102d7b6af7",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -272,11 +290,33 @@
                 {
                     "name": "",
                     "id": "7b16c1a3-f918-45fe-8d04-6a9d58d0a3fc",
-                    "path": "",
+                    "path": "<Mouse>/leftButton",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "New action",
+                    "action": "select",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "2114727a-a863-4ef8-acbe-b4019aa806dc",
+                    "path": "<Keyboard>/space",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Activate",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "e77cae4f-fe5b-4823-8ca5-10707104f202",
+                    "path": "<Keyboard>/q",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Switch",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

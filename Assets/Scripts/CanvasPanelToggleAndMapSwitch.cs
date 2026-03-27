@@ -16,6 +16,13 @@ public class CanvasPanelToggleAndMapSwitch : MonoBehaviour
     [Tooltip("Reference to the Input Actions asset (Assets/Player_IA.inputactions).")]
     [SerializeField] private InputActionAsset m_InputActions;
 
+    [Header("Action Names")]
+    [Tooltip("Action in TheHitman map used to switch into TheHandler mode.")]
+    [SerializeField] private string m_HitmanSwitchActionName = "Switch";
+
+    [Tooltip("Action in TheHandler map used to switch back to TheHitman mode.")]
+    [SerializeField] private string m_HandlerSwitchBackActionName = "Switch";
+
     [Header("Optional: Disable player controller while overlay is shown")]
     [SerializeField] private Behaviour m_PlayerControllerToDisable;
 
@@ -25,7 +32,10 @@ public class CanvasPanelToggleAndMapSwitch : MonoBehaviour
 
     #region State
     private bool m_IsOverlayShown;
-    private bool m_WantsCursorLockStateChange;
+    private InputActionMap m_HitmanMap;
+    private InputActionMap m_HandlerMap;
+    private InputAction m_SwitchToHandlerAction;
+    private InputAction m_SwitchToHitmanAction;
     #endregion
 
     #region Unity Lifecycle
@@ -34,20 +44,69 @@ public class CanvasPanelToggleAndMapSwitch : MonoBehaviour
         if (m_OverlayPanel != null)
             m_OverlayPanel.SetActive(false);
 
+        CacheActionMapsAndActions();
         ApplyMode(isOverlayShown: false);
+    }
+
+    private void OnEnable()
+    {
+        if (m_SwitchToHandlerAction != null)
+            m_SwitchToHandlerAction.performed += OnSwitchToHandlerPerformed;
+
+        if (m_SwitchToHitmanAction != null)
+            m_SwitchToHitmanAction.performed += OnSwitchToHitmanPerformed;
+    }
+
+    private void OnDisable()
+    {
+        if (m_SwitchToHandlerAction != null)
+            m_SwitchToHandlerAction.performed -= OnSwitchToHandlerPerformed;
+
+        if (m_SwitchToHitmanAction != null)
+            m_SwitchToHitmanAction.performed -= OnSwitchToHitmanPerformed;
     }
 
     private void Update()
     {
-        if (Keyboard.current == null)
-            return;
-
-        if (Keyboard.current.qKey.wasPressedThisFrame)
-            ToggleOverlayAndMaps();
+        // Intentionally left empty:
+        // switching is handled by the TheHitman/Switch input action callback.
     }
     #endregion
 
     #region Private Methods
+    private void CacheActionMapsAndActions()
+    {
+        if (m_InputActions == null)
+            return;
+
+        m_HitmanMap = m_InputActions.FindActionMap(c_HitmanMapName, throwIfNotFound: false);
+        m_HandlerMap = m_InputActions.FindActionMap(c_HandlerMapName, throwIfNotFound: false);
+        m_SwitchToHandlerAction = m_HitmanMap != null
+            ? m_HitmanMap.FindAction(m_HitmanSwitchActionName, throwIfNotFound: false)
+            : null;
+        m_SwitchToHitmanAction = m_HandlerMap != null
+            ? m_HandlerMap.FindAction(m_HandlerSwitchBackActionName, throwIfNotFound: false)
+            : null;
+    }
+
+    private void OnSwitchToHandlerPerformed(InputAction.CallbackContext _context)
+    {
+        // Ignore if already in handler mode or if this switch action fires from a stale state.
+        if (m_IsOverlayShown || m_HitmanMap == null || !m_HitmanMap.enabled)
+            return;
+
+        ToggleOverlayAndMaps();
+    }
+
+    private void OnSwitchToHitmanPerformed(InputAction.CallbackContext _context)
+    {
+        // Ignore if already in hitman mode or if this switch action fires from a stale state.
+        if (!m_IsOverlayShown || m_HandlerMap == null || !m_HandlerMap.enabled)
+            return;
+
+        ToggleOverlayAndMaps();
+    }
+
     private void ToggleOverlayAndMaps()
     {
         m_IsOverlayShown = !m_IsOverlayShown;
@@ -84,21 +143,21 @@ public class CanvasPanelToggleAndMapSwitch : MonoBehaviour
         if (m_InputActions == null)
             return;
 
-        var hitmanMap = m_InputActions.FindActionMap(c_HitmanMapName, throwIfNotFound: false);
-        var handlerMap = m_InputActions.FindActionMap(c_HandlerMapName, throwIfNotFound: false);
+        if (m_HitmanMap == null || m_HandlerMap == null)
+            CacheActionMapsAndActions();
 
-        if (hitmanMap == null || handlerMap == null)
+        if (m_HitmanMap == null || m_HandlerMap == null)
             return;
 
         if (activeMapName == c_HandlerMapName)
         {
-            hitmanMap.Disable();
-            handlerMap.Enable();
+            m_HitmanMap.Disable();
+            m_HandlerMap.Enable();
         }
         else
         {
-            handlerMap.Disable();
-            hitmanMap.Enable();
+            m_HandlerMap.Disable();
+            m_HitmanMap.Enable();
         }
     }
     #endregion

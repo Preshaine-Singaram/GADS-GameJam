@@ -345,9 +345,27 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
             ""id"": ""e4ba5aa6-6bf0-4640-9c91-ed818b78da78"",
             ""actions"": [
                 {
-                    ""name"": ""New action"",
+                    ""name"": ""select"",
                     ""type"": ""Button"",
                     ""id"": ""05f1fe66-9ac9-4adf-9674-44ef0473fbbd"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Activate"",
+                    ""type"": ""Button"",
+                    ""id"": ""6de2aa0e-8dcb-4fe6-8cb6-9b1940799667"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Switch"",
+                    ""type"": ""Button"",
+                    ""id"": ""9083122f-a1fc-4922-acfd-f4102d7b6af7"",
                     ""expectedControlType"": """",
                     ""processors"": """",
                     ""interactions"": """",
@@ -358,11 +376,33 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""7b16c1a3-f918-45fe-8d04-6a9d58d0a3fc"",
-                    ""path"": """",
+                    ""path"": ""<Mouse>/leftButton"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
-                    ""action"": ""New action"",
+                    ""action"": ""select"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""2114727a-a863-4ef8-acbe-b4019aa806dc"",
+                    ""path"": ""<Keyboard>/space"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Activate"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""e77cae4f-fe5b-4823-8ca5-10707104f202"",
+                    ""path"": ""<Keyboard>/q"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Switch"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 }
@@ -385,7 +425,9 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
         m_TheHitman_Poison = m_TheHitman.FindAction("Poison", throwIfNotFound: true);
         // TheHandler
         m_TheHandler = asset.FindActionMap("TheHandler", throwIfNotFound: true);
-        m_TheHandler_Newaction = m_TheHandler.FindAction("New action", throwIfNotFound: true);
+        m_TheHandler_select = m_TheHandler.FindAction("select", throwIfNotFound: true);
+        m_TheHandler_Activate = m_TheHandler.FindAction("Activate", throwIfNotFound: true);
+        m_TheHandler_Switch = m_TheHandler.FindAction("Switch", throwIfNotFound: true);
     }
 
     ~@Player_IA()
@@ -662,7 +704,9 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
     // TheHandler
     private readonly InputActionMap m_TheHandler;
     private List<ITheHandlerActions> m_TheHandlerActionsCallbackInterfaces = new List<ITheHandlerActions>();
-    private readonly InputAction m_TheHandler_Newaction;
+    private readonly InputAction m_TheHandler_select;
+    private readonly InputAction m_TheHandler_Activate;
+    private readonly InputAction m_TheHandler_Switch;
     /// <summary>
     /// Provides access to input actions defined in input action map "TheHandler".
     /// </summary>
@@ -675,9 +719,17 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
         /// </summary>
         public TheHandlerActions(@Player_IA wrapper) { m_Wrapper = wrapper; }
         /// <summary>
-        /// Provides access to the underlying input action "TheHandler/Newaction".
+        /// Provides access to the underlying input action "TheHandler/select".
         /// </summary>
-        public InputAction @Newaction => m_Wrapper.m_TheHandler_Newaction;
+        public InputAction @select => m_Wrapper.m_TheHandler_select;
+        /// <summary>
+        /// Provides access to the underlying input action "TheHandler/Activate".
+        /// </summary>
+        public InputAction @Activate => m_Wrapper.m_TheHandler_Activate;
+        /// <summary>
+        /// Provides access to the underlying input action "TheHandler/Switch".
+        /// </summary>
+        public InputAction @Switch => m_Wrapper.m_TheHandler_Switch;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -704,9 +756,15 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
         {
             if (instance == null || m_Wrapper.m_TheHandlerActionsCallbackInterfaces.Contains(instance)) return;
             m_Wrapper.m_TheHandlerActionsCallbackInterfaces.Add(instance);
-            @Newaction.started += instance.OnNewaction;
-            @Newaction.performed += instance.OnNewaction;
-            @Newaction.canceled += instance.OnNewaction;
+            @select.started += instance.OnSelect;
+            @select.performed += instance.OnSelect;
+            @select.canceled += instance.OnSelect;
+            @Activate.started += instance.OnActivate;
+            @Activate.performed += instance.OnActivate;
+            @Activate.canceled += instance.OnActivate;
+            @Switch.started += instance.OnSwitch;
+            @Switch.performed += instance.OnSwitch;
+            @Switch.canceled += instance.OnSwitch;
         }
 
         /// <summary>
@@ -718,9 +776,15 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
         /// <seealso cref="TheHandlerActions" />
         private void UnregisterCallbacks(ITheHandlerActions instance)
         {
-            @Newaction.started -= instance.OnNewaction;
-            @Newaction.performed -= instance.OnNewaction;
-            @Newaction.canceled -= instance.OnNewaction;
+            @select.started -= instance.OnSelect;
+            @select.performed -= instance.OnSelect;
+            @select.canceled -= instance.OnSelect;
+            @Activate.started -= instance.OnActivate;
+            @Activate.performed -= instance.OnActivate;
+            @Activate.canceled -= instance.OnActivate;
+            @Switch.started -= instance.OnSwitch;
+            @Switch.performed -= instance.OnSwitch;
+            @Switch.canceled -= instance.OnSwitch;
         }
 
         /// <summary>
@@ -840,11 +904,25 @@ public partial class @Player_IA: IInputActionCollection2, IDisposable
     public interface ITheHandlerActions
     {
         /// <summary>
-        /// Method invoked when associated input action "New action" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// Method invoked when associated input action "select" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>
         /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
-        void OnNewaction(InputAction.CallbackContext context);
+        void OnSelect(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Activate" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnActivate(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Switch" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnSwitch(InputAction.CallbackContext context);
     }
 }
