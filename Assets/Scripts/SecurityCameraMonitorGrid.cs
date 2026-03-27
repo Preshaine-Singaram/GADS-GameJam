@@ -38,6 +38,13 @@ public class SecurityCameraMonitorGrid : MonoBehaviour
 
     [Tooltip("If true, adds AspectRatioFitter to each tile to preserve RenderTexture aspect.")]
     [SerializeField] private bool m_UseAspectRatioFitter = true;
+
+    [Header("Handler Unlock Gate")]
+    [Tooltip("If true, camera feeds remain hidden/disabled until UnlockMonitor() is called.")]
+    [SerializeField] private bool m_RequireUnlockToShowFeeds = true;
+
+    [Tooltip("Initial runtime state for monitor visibility when unlock gating is enabled.")]
+    [SerializeField] private bool m_MonitorUnlockedAtStart = false;
     #endregion
 
     #region Private State
@@ -46,11 +53,15 @@ public class SecurityCameraMonitorGrid : MonoBehaviour
     private bool m_IsInitialized;
     private RawImage[] m_RawImages;
     private int m_Rows;
+    private bool m_IsMonitorUnlocked;
+    private bool m_IsRenderingActive;
     #endregion
 
     #region Unity Lifecycle
     private void Awake()
     {
+        m_IsMonitorUnlocked = !m_RequireUnlockToShowFeeds || m_MonitorUnlockedAtStart;
+
         if (m_MonitorPanel == null)
         {
             // Fallback for quick setup; prefer assigning in Inspector for safety.
@@ -75,18 +86,10 @@ public class SecurityCameraMonitorGrid : MonoBehaviour
             return;
 
         bool shouldRender = ShouldRenderNow();
-        // We don't have a direct flag for camera state, so we just check panel state by toggling enabled
-        // when it changes by comparing with current enabled state.
-        for (int i = 0; i < m_Cameras.Length; i++)
-        {
-            if (m_Cameras[i] == null)
-                continue;
+        if (shouldRender == m_IsRenderingActive)
+            return;
 
-            bool currentlyEnabled = m_Cameras[i].enabled;
-            bool desiredEnabled = shouldRender;
-            if (currentlyEnabled != desiredEnabled)
-                m_Cameras[i].enabled = desiredEnabled;
-        }
+        SetFeedRenderingActive(shouldRender);
     }
 
     private void OnDisable()
@@ -197,7 +200,7 @@ public class SecurityCameraMonitorGrid : MonoBehaviour
     {
         // Render only when both this component and the panel are active.
         // (If panel is toggled by your overlay code, this saves a lot of GPU time.)
-        return isActiveAndEnabled && m_MonitorPanel.gameObject.activeInHierarchy;
+        return isActiveAndEnabled && m_MonitorPanel.gameObject.activeInHierarchy && IsMonitorAvailable();
     }
 
     private void SetFeedRenderingActive(bool active)
@@ -211,6 +214,23 @@ public class SecurityCameraMonitorGrid : MonoBehaviour
                 continue;
 
             m_Cameras[i].enabled = active;
+        }
+
+        SetTilesVisible(active);
+        m_IsRenderingActive = active;
+    }
+
+    private void SetTilesVisible(bool isVisible)
+    {
+        if (m_RawImages == null)
+            return;
+
+        for (int i = 0; i < m_RawImages.Length; i++)
+        {
+            if (m_RawImages[i] == null)
+                continue;
+
+            m_RawImages[i].enabled = isVisible;
         }
     }
     #endregion
@@ -295,6 +315,28 @@ public class SecurityCameraMonitorGrid : MonoBehaviour
         rt.Create();
         return rt;
     }
+
+    private bool IsMonitorAvailable()
+    {
+        return !m_RequireUnlockToShowFeeds || m_IsMonitorUnlocked;
+    }
+
+    #region Public Unlock API
+    public void UnlockMonitor()
+    {
+        m_IsMonitorUnlocked = true;
+        SetFeedRenderingActive(ShouldRenderNow());
+    }
+
+    public void LockMonitor()
+    {
+        if (!m_RequireUnlockToShowFeeds)
+            return;
+
+        m_IsMonitorUnlocked = false;
+        SetFeedRenderingActive(false);
+    }
+    #endregion
     #endregion
 }
 

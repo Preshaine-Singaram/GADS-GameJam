@@ -65,6 +65,13 @@ public class LiveLevelMapPanel : MonoBehaviour
 
     [Tooltip("Max cursor distance (UI units) from a marker to allow selection.")]
     [SerializeField] private float m_SelectDoorMaxDistance = 32f;
+
+    [Header("Handler Unlock Gate")]
+    [Tooltip("If true, Select/Activate controls stay disabled until UnlockHandlerControls() is called.")]
+    [SerializeField] private bool m_RequireUnlockForHandlerControls = true;
+
+    [Tooltip("Initial runtime state for handler controls when unlock gating is enabled.")]
+    [SerializeField] private bool m_HandlerControlsUnlockedAtStart = false;
     #endregion
 
     #region Roof Controls
@@ -132,6 +139,7 @@ public class LiveLevelMapPanel : MonoBehaviour
     private int m_SelectedDoorIndex = -1;
     private RoofRendererState[] m_RoofRendererStates = Array.Empty<RoofRendererState>();
     private bool m_AreRoofsHiddenForMap;
+    private bool m_IsHandlerControlsUnlocked;
 
     private sealed class DoorEntry
     {
@@ -153,6 +161,8 @@ public class LiveLevelMapPanel : MonoBehaviour
     #region Unity Lifecycle
     private void Awake()
     {
+        m_IsHandlerControlsUnlocked = !m_RequireUnlockForHandlerControls || m_HandlerControlsUnlockedAtStart;
+
         if (m_MapCamera == null)
             m_MapCamera = GetComponentInChildren<Camera>(true);
 
@@ -172,12 +182,7 @@ public class LiveLevelMapPanel : MonoBehaviour
     {
         InitializeIfNeeded();
         ApplyCameraAndTextureState();
-
-        if (!m_AutoEnableHandlerActions)
-            return;
-
-        m_SelectDoorAction?.action.Enable();
-        m_ActivateDoorAction?.action.Enable();
+        RefreshHandlerActionState();
     }
 
     private void Update()
@@ -203,12 +208,7 @@ public class LiveLevelMapPanel : MonoBehaviour
 
         if (m_RenderOnlyWhenPanelVisible && m_MapCamera != null)
             m_MapCamera.enabled = false;
-
-        if (!m_AutoEnableHandlerActions)
-            return;
-
-        m_SelectDoorAction?.action.Disable();
-        m_ActivateDoorAction?.action.Disable();
+        DisableHandlerActions();
     }
 
     private void OnDestroy()
@@ -346,11 +346,17 @@ public class LiveLevelMapPanel : MonoBehaviour
     #region Door Controls
     public void ToggleDoorsActive()
     {
+        if (!AreHandlerControlsAvailable())
+            return;
+
         ToggleSelectedDoorEnabled();
     }
 
     public void ToggleSelectedDoorEnabled()
     {
+        if (!AreHandlerControlsAvailable())
+            return;
+
         if (m_SelectedDoorIndex < 0 || m_SelectedDoorIndex >= m_DoorEntries.Length)
             return;
 
@@ -360,7 +366,7 @@ public class LiveLevelMapPanel : MonoBehaviour
 
     private void HandleDoorToggleInput()
     {
-        if (!m_AllowDoorToggleFromMap || !IsMapPanelVisible())
+        if (!m_AllowDoorToggleFromMap || !IsMapPanelVisible() || !AreHandlerControlsAvailable())
             return;
 
         bool activatePressed = m_ActivateDoorAction != null
@@ -376,7 +382,7 @@ public class LiveLevelMapPanel : MonoBehaviour
 
     private void HandleDoorSelectionInput()
     {
-        if (!IsMapPanelVisible())
+        if (!IsMapPanelVisible() || !AreHandlerControlsAvailable())
             return;
 
         bool selectPressed = m_SelectDoorAction != null
@@ -527,6 +533,9 @@ public class LiveLevelMapPanel : MonoBehaviour
 
     public void SetSelectedDoorEnabled(bool isEnabled)
     {
+        if (!AreHandlerControlsAvailable())
+            return;
+
         if (m_SelectedDoorIndex < 0 || m_SelectedDoorIndex >= m_DoorEntries.Length)
             return;
 
@@ -663,6 +672,35 @@ public class LiveLevelMapPanel : MonoBehaviour
     private bool IsMapPanelVisible()
     {
         return m_MapPanel != null && m_MapPanel.gameObject.activeInHierarchy;
+    }
+
+    private bool AreHandlerControlsAvailable()
+    {
+        return !m_RequireUnlockForHandlerControls || m_IsHandlerControlsUnlocked;
+    }
+
+    private void RefreshHandlerActionState()
+    {
+        if (!m_AutoEnableHandlerActions)
+            return;
+
+        if (isActiveAndEnabled && AreHandlerControlsAvailable())
+        {
+            m_SelectDoorAction?.action.Enable();
+            m_ActivateDoorAction?.action.Enable();
+            return;
+        }
+
+        DisableHandlerActions();
+    }
+
+    private void DisableHandlerActions()
+    {
+        if (!m_AutoEnableHandlerActions)
+            return;
+
+        m_SelectDoorAction?.action.Disable();
+        m_ActivateDoorAction?.action.Disable();
     }
 
     private void CacheRoofRenderers()
@@ -843,6 +881,23 @@ public class LiveLevelMapPanel : MonoBehaviour
         raw.raycastTarget = false;
         return raw;
     }
+
+    #region Public Unlock API
+    public void UnlockHandlerControls()
+    {
+        m_IsHandlerControlsUnlocked = true;
+        RefreshHandlerActionState();
+    }
+
+    public void LockHandlerControls()
+    {
+        if (!m_RequireUnlockForHandlerControls)
+            return;
+
+        m_IsHandlerControlsUnlocked = false;
+        RefreshHandlerActionState();
+    }
+    #endregion
     #endregion
 }
 
